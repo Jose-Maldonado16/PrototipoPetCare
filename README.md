@@ -116,7 +116,7 @@ python -m http.server 3000
 
 ##Credenciales de Acceso
 
-Rol	          Email	          Contraseña
-Administrador  	admin@petcare.com	admin123
-Dueño          	maria@petcare.com	maria123
+Rol	          Email	          Contraseña #
+Administrador  	admin@petcare.com	admin123 #
+Dueño          	maria@petcare.com	maria123 #
 Cuidador       	ana@petcare.com	ana123
