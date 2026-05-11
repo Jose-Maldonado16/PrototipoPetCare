@@ -55,7 +55,8 @@ Sistema completo de gestión de usuarios para la plataforma PetCare con autentic
 ## 📁 Estructura del Proyecto
 
 
-PrototipoPetCare/
+PrototipoPetCare
+
 │
 ├── backend/ # Servidor backend
 │ ├── app.py # API REST principal (Flask)
@@ -80,37 +81,37 @@ PrototipoPetCare/
 └── README.md # Documentación del proyecto
 
 
-## 🚀 Instalación y Ejecución
+# 🚀 Instalación y Ejecución
 
-### Requisitos Previos
+## Requisitos Previos
 - Python 3.7 o superior
 - Pip (gestor de paquetes de Python)
 - Navegador web moderno (Chrome, Firefox, Edge)
 
-### 1. Configuración del Backend
+## 1. Configuración del Backend
 
-# Navegar al directorio del backend
+ Navegar al directorio del backend
 cd backend
 
-# Crear entorno virtual
+ Crear entorno virtual
 python -m venv venv
 
-# Activar entorno virtual
-# En Windows:
+ Activar entorno virtual
+ En Windows:
 venv\Scripts\activate
-# En Linux/Mac:
+ En Linux/Mac:
 source venv/bin/activate
 
-# Instalar dependencias
+ Instalar dependencias
 pip install -r requirements.txt
 
-# Ejecutar el servidor Flask
+ Ejecutar el servidor Flask
 python app.py
 
-# Abrir una nueva terminal y navegar al frontend
+ Abrir una nueva terminal y navegar al frontend
 cd frontend
 
-# Iniciar servidor HTTP
+Iniciar servidor HTTP
 python -m http.server 3000
 
 3. Credenciales de Acceso
