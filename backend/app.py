@@ -1,103 +1,36 @@
-import sqlite3
-import hashlib
+"""
+PETCARE CONNECT - API CON SUPABASE (SIN ENCRIPTACIÓN)
+Contraseñas guardadas en texto plano - SOLO PARA DESARROLLO
+"""
+
+import os
 import re
 from datetime import datetime
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify
 from flask_cors import CORS
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-DATABASE = 'petcare.db'
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-def get_db():
-    db = getattr(g, '_database', None)
-    if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
-        db.row_factory = sqlite3.Row
-    return db
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("❌ Error: SUPABASE_URL y SUPABASE_KEY deben estar en .env")
 
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, '_database', None)
-    if db is not None:
-        db.close()
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+# ==================== FUNCIONES DE AYUDA ====================
 
 def validate_email(email):
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
-def init_db():
-    with app.app_context():
-        db = get_db()
-        cursor = db.cursor()
-        
-        # Tabla usuarios (Sprint 1)
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS usuarios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT NOT NULL,
-                apellido TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                telefono TEXT,
-                rol TEXT CHECK(rol IN ('dueño', 'cuidador', 'administrador')) DEFAULT 'dueño',
-                foto_url TEXT,
-                activo INTEGER DEFAULT 1,
-                created_at TEXT
-            )
-        ''')
-        
-        # Tabla productos_servicios (Sprint 2 - NUEVA)
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS productos_servicios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                titulo TEXT NOT NULL,
-                descripcion TEXT NOT NULL,
-                precio DECIMAL(10,2) NOT NULL,
-                categoria TEXT NOT NULL CHECK(categoria IN ('paseo', 'guarderia', 'alojamiento')),
-                ofertante_id INTEGER NOT NULL,
-                estado TEXT DEFAULT 'pendiente' CHECK(estado IN ('pendiente', 'aprobado', 'rechazado')),
-                motivo_rechazo TEXT,
-                fecha_creacion TEXT NOT NULL,
-                fecha_actualizacion TEXT NOT NULL,
-                activo INTEGER DEFAULT 1,
-                FOREIGN KEY (ofertante_id) REFERENCES usuarios(id)
-            )
-        ''')
-        
-        # Crear índices
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_email ON usuarios(email)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_productos_ofertante ON productos_servicios(ofertante_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_productos_estado ON productos_servicios(estado)')
-        
-        # Usuario administrador por defecto
-        admin_email = "admin@petcare.com"
-        cursor.execute("SELECT id FROM usuarios WHERE email = ?", (admin_email,))
-        if not cursor.fetchone():
-            admin_pass = hash_password("admin123")
-            cursor.execute('''
-                INSERT INTO usuarios (nombre, apellido, email, password, telefono, rol, activo, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', ("Administrador", "Sistema", admin_email, admin_pass, "123456789", "administrador", 1, datetime.now().isoformat()))
-        
-        # Usuario cuidador de ejemplo (ofertante)
-        cuidador_email = "cuidador@petcare.com"
-        cursor.execute("SELECT id FROM usuarios WHERE email = ?", (cuidador_email,))
-        if not cursor.fetchone():
-            cuidador_pass = hash_password("cuidador123")
-            cursor.execute('''
-                INSERT INTO usuarios (nombre, apellido, email, password, telefono, rol, activo, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', ("Carlos", "Cuidador", cuidador_email, cuidador_pass, "77777777", "cuidador", 1, datetime.now().isoformat()))
-        
-        db.commit()
-        print("✓ Base de datos inicializada con tablas de usuarios y productos/servicios")
-
-# ==================== ENDPOINTS USUARIOS (Sprint 1) ====================
+# ==================== ENDPOINTS USUARIOS ====================
 
 @app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
 def login():
@@ -111,20 +44,16 @@ def login():
         if not email or not password:
             return jsonify({'error': 'Email y contraseña son requeridos'}), 400
         
-        db = get_db()
-        cursor = db.cursor()
-        hashed_pass = hash_password(password)
+        # ✅ Comparación directa (texto plano)
+        response = supabase.table('usuarios').select('*').eq('email', email).eq('password', password).execute()
         
-        cursor.execute('''
-            SELECT id, nombre, apellido, email, telefono, rol, foto_url, activo, created_at 
-            FROM usuarios WHERE email = ? AND password = ?
-        ''', (email, hashed_pass))
-        
-        user = cursor.fetchone()
-        if user:
+        if response.data:
+            user = response.data[0]
             if user['activo'] != 1:
                 return jsonify({'error': 'Usuario inactivo'}), 401
-            return jsonify(dict(user)), 200
+            
+            del user['password']
+            return jsonify(user), 200
         else:
             return jsonify({'error': 'Credenciales inválidas'}), 401
     except Exception as e:
@@ -135,14 +64,13 @@ def get_usuarios():
     if request.method == 'OPTIONS':
         return '', 200
     try:
-        db = get_db()
-        cursor = db.cursor()
-        cursor.execute('''
-            SELECT id, nombre, apellido, email, telefono, rol, foto_url, activo, created_at 
-            FROM usuarios ORDER BY id DESC
-        ''')
-        users = cursor.fetchall()
-        return jsonify([dict(user) for user in users]), 200
+        response = supabase.table('usuarios').select('*').order('id', desc=True).execute()
+        
+        users = response.data
+        for user in users:
+            user.pop('password', None)
+        
+        return jsonify(users), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -151,15 +79,12 @@ def get_usuario(id):
     if request.method == 'OPTIONS':
         return '', 200
     try:
-        db = get_db()
-        cursor = db.cursor()
-        cursor.execute('''
-            SELECT id, nombre, apellido, email, telefono, rol, foto_url, activo, created_at 
-            FROM usuarios WHERE id = ?
-        ''', (id,))
-        user = cursor.fetchone()
-        if user:
-            return jsonify(dict(user)), 200
+        response = supabase.table('usuarios').select('*').eq('id', id).execute()
+        
+        if response.data:
+            user = response.data[0]
+            user.pop('password', None)
+            return jsonify(user), 200
         else:
             return jsonify({'error': 'Usuario no encontrado'}), 404
     except Exception as e:
@@ -186,33 +111,31 @@ def create_usuario():
         if data['rol'] not in ['dueño', 'cuidador', 'administrador']:
             return jsonify({'error': 'Rol inválido'}), 400
         
-        db = get_db()
-        cursor = db.cursor()
-        
-        cursor.execute("SELECT id FROM usuarios WHERE email = ?", (data['email'],))
-        if cursor.fetchone():
+        existing = supabase.table('usuarios').select('id').eq('email', data['email']).execute()
+        if existing.data:
             return jsonify({'error': 'El email ya está registrado'}), 409
         
-        hashed_pass = hash_password(data['password'])
-        created_at = datetime.now().isoformat()
+        # ✅ Guardar contraseña en texto plano
+        new_user = {
+            'nombre': data['nombre'],
+            'apellido': data['apellido'],
+            'email': data['email'],
+            'password': data['password'],  # ← texto plano
+            'telefono': data.get('telefono', ''),
+            'rol': data['rol'],
+            'foto_url': data.get('foto_url', ''),
+            'activo': data.get('activo', 1)
+        }
         
-        cursor.execute('''
-            INSERT INTO usuarios (nombre, apellido, email, password, telefono, rol, foto_url, activo, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (data['nombre'], data['apellido'], data['email'], hashed_pass, 
-              data.get('telefono', ''), data['rol'], data.get('foto_url', ''), 
-              data.get('activo', 1), created_at))
+        response = supabase.table('usuarios').insert(new_user).execute()
         
-        db.commit()
-        user_id = cursor.lastrowid
+        if response.data:
+            created_user = response.data[0]
+            created_user.pop('password', None)
+            return jsonify(created_user), 201
+        else:
+            return jsonify({'error': 'No se pudo crear el usuario'}), 500
         
-        cursor.execute('''
-            SELECT id, nombre, apellido, email, telefono, rol, foto_url, activo, created_at 
-            FROM usuarios WHERE id = ?
-        ''', (user_id,))
-        new_user = cursor.fetchone()
-        
-        return jsonify(dict(new_user)), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -222,65 +145,54 @@ def update_usuario(id):
         return '', 200
     try:
         data = request.get_json()
-        db = get_db()
-        cursor = db.cursor()
         
-        cursor.execute("SELECT id FROM usuarios WHERE id = ?", (id,))
-        if not cursor.fetchone():
+        existing = supabase.table('usuarios').select('id').eq('id', id).execute()
+        if not existing.data:
             return jsonify({'error': 'Usuario no encontrado'}), 404
         
         if 'email' in data:
             if not validate_email(data['email']):
                 return jsonify({'error': 'Email inválido'}), 400
-            cursor.execute("SELECT id FROM usuarios WHERE email = ? AND id != ?", (data['email'], id))
-            if cursor.fetchone():
+            
+            email_check = supabase.table('usuarios').select('id').eq('email', data['email']).neq('id', id).execute()
+            if email_check.data:
                 return jsonify({'error': 'El email ya está registrado'}), 409
         
-        update_fields = []
-        values = []
+        update_data = {}
         
         if 'nombre' in data:
-            update_fields.append("nombre = ?")
-            values.append(data['nombre'])
+            update_data['nombre'] = data['nombre']
         if 'apellido' in data:
-            update_fields.append("apellido = ?")
-            values.append(data['apellido'])
+            update_data['apellido'] = data['apellido']
         if 'email' in data:
-            update_fields.append("email = ?")
-            values.append(data['email'])
+            update_data['email'] = data['email']
         if 'password' in data and data['password']:
             if len(data['password']) < 6:
                 return jsonify({'error': 'La contraseña debe tener mínimo 6 caracteres'}), 400
-            update_fields.append("password = ?")
-            values.append(hash_password(data['password']))
+            update_data['password'] = data['password']  # ← texto plano
         if 'telefono' in data:
-            update_fields.append("telefono = ?")
-            values.append(data['telefono'])
+            update_data['telefono'] = data['telefono']
         if 'rol' in data:
             if data['rol'] not in ['dueño', 'cuidador', 'administrador']:
                 return jsonify({'error': 'Rol inválido'}), 400
-            update_fields.append("rol = ?")
-            values.append(data['rol'])
+            update_data['rol'] = data['rol']
         if 'foto_url' in data:
-            update_fields.append("foto_url = ?")
-            values.append(data['foto_url'])
+            update_data['foto_url'] = data['foto_url']
         if 'activo' in data:
-            update_fields.append("activo = ?")
-            values.append(data['activo'])
+            update_data['activo'] = data['activo']
         
-        if update_fields:
-            values.append(id)
-            query = f"UPDATE usuarios SET {', '.join(update_fields)} WHERE id = ?"
-            cursor.execute(query, values)
-            db.commit()
+        if not update_data:
+            return jsonify({'message': 'No se realizaron cambios'}), 200
         
-        cursor.execute('''
-            SELECT id, nombre, apellido, email, telefono, rol, foto_url, activo, created_at 
-            FROM usuarios WHERE id = ?
-        ''', (id,))
-        updated_user = cursor.fetchone()
+        response = supabase.table('usuarios').update(update_data).eq('id', id).execute()
         
-        return jsonify(dict(updated_user)), 200
+        if response.data:
+            updated_user = response.data[0]
+            updated_user.pop('password', None)
+            return jsonify(updated_user), 200
+        else:
+            return jsonify({'error': 'No se pudo actualizar'}), 500
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -289,47 +201,39 @@ def delete_usuario(id):
     if request.method == 'OPTIONS':
         return '', 200
     try:
-        db = get_db()
-        cursor = db.cursor()
+        user = supabase.table('usuarios').select('email').eq('id', id).execute()
         
-        cursor.execute("SELECT id, email FROM usuarios WHERE id = ?", (id,))
-        user = cursor.fetchone()
-        
-        if not user:
+        if not user.data:
             return jsonify({'error': 'Usuario no encontrado'}), 404
         
-        if user['email'] == 'admin@petcare.com':
+        if user.data[0]['email'] == 'admin@petcare.com':
             return jsonify({'error': 'No se puede eliminar al administrador principal'}), 403
         
-        cursor.execute("DELETE FROM usuarios WHERE id = ?", (id,))
-        db.commit()
+        supabase.table('usuarios').delete().eq('id', id).execute()
         
         return jsonify({'message': 'Usuario eliminado correctamente'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ==================== ENDPOINTS PRODUCTOS/SERVICIOS (Sprint 2 - NUEVOS) ====================
+# ==================== ENDPOINTS PRODUCTOS/SERVICIOS ====================
+# (Mismos que antes, sin cambios)
+# ... (mantén los mismos endpoints de productos)
 
 @app.route('/api/productos', methods=['POST', 'OPTIONS'])
 def create_producto():
-    """HU-01: Registrar producto/servicio (Ofertante) - Estado inicial: pendiente"""
     if request.method == 'OPTIONS':
         return '', 200
-    
     try:
         data = request.get_json()
         
-        # Validar campos requeridos
         required = ['titulo', 'descripcion', 'precio', 'categoria', 'ofertante_id']
         for field in required:
             if field not in data:
                 return jsonify({'error': f'El campo {field} es requerido'}), 400
         
-        # Validar categoría
         if data['categoria'] not in ['paseo', 'guarderia', 'alojamiento']:
-            return jsonify({'error': 'Categoría inválida. Debe ser: paseo, guarderia o alojamiento'}), 400
+            return jsonify({'error': 'Categoría inválida'}), 400
         
-        # Validar precio
         try:
             precio = float(data['precio'])
             if precio <= 0:
@@ -337,77 +241,60 @@ def create_producto():
         except:
             return jsonify({'error': 'El precio debe ser un número válido'}), 400
         
-        db = get_db()
-        cursor = db.cursor()
+        ofertante = supabase.table('usuarios').select('id, rol').eq('id', data['ofertante_id']).execute()
         
-        # Verificar que el ofertante existe y es cuidador o administrador
-        cursor.execute("SELECT id, rol FROM usuarios WHERE id = ?", (data['ofertante_id'],))
-        ofertante = cursor.fetchone()
-        if not ofertante:
+        if not ofertante.data:
             return jsonify({'error': 'Ofertante no encontrado'}), 404
         
-        if ofertante['rol'] not in ['cuidador', 'administrador']:
-            return jsonify({'error': 'Solo los cuidadores o administradores pueden ofertar servicios'}), 403
+        if ofertante.data[0]['rol'] not in ['cuidador', 'administrador']:
+            return jsonify({'error': 'Solo los cuidadores pueden ofertar servicios'}), 403
         
-        # Crear producto con estado 'pendiente' (HU-01)
-        now = datetime.now().isoformat()
-        cursor.execute('''
-            INSERT INTO productos_servicios (titulo, descripcion, precio, categoria, ofertante_id, estado, fecha_creacion, fecha_actualizacion, activo)
-            VALUES (?, ?, ?, ?, ?, 'pendiente', ?, ?, 1)
-        ''', (data['titulo'], data['descripcion'], precio, data['categoria'], data['ofertante_id'], now, now))
+        new_producto = {
+            'titulo': data['titulo'],
+            'descripcion': data['descripcion'],
+            'precio': precio,
+            'categoria': data['categoria'],
+            'ofertante_id': data['ofertante_id'],
+            'estado': 'pendiente',
+            'activo': 1
+        }
         
-        db.commit()
-        producto_id = cursor.lastrowid
+        response = supabase.table('productos_servicios').insert(new_producto).execute()
         
-        # Obtener producto creado
-        cursor.execute('''
-            SELECT p.*, u.nombre, u.apellido 
-            FROM productos_servicios p
-            JOIN usuarios u ON p.ofertante_id = u.id
-            WHERE p.id = ?
-        ''', (producto_id,))
-        
-        producto = cursor.fetchone()
-        return jsonify(dict(producto)), 201
+        if response.data:
+            return jsonify(response.data[0]), 201
+        else:
+            return jsonify({'error': 'No se pudo crear el producto'}), 500
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/productos', methods=['GET', 'OPTIONS'])
 def get_productos():
-    """Listar productos con filtros opcionales"""
     if request.method == 'OPTIONS':
         return '', 200
-    
     try:
-        db = get_db()
-        cursor = db.cursor()
-        
         estado = request.args.get('estado')
         ofertante_id = request.args.get('ofertante_id')
         
-        query = '''
-            SELECT p.*, u.nombre, u.apellido, u.telefono
-            FROM productos_servicios p
-            JOIN usuarios u ON p.ofertante_id = u.id
-            WHERE p.activo = 1
-        '''
-        params = []
+        query = supabase.table('productos_servicios').select('*, usuarios(nombre, apellido, telefono)').eq('activo', 1)
         
         if estado:
-            query += " AND p.estado = ?"
-            params.append(estado)
-        
+            query = query.eq('estado', estado)
         if ofertante_id:
-            query += " AND p.ofertante_id = ?"
-            params.append(ofertante_id)
+            query = query.eq('ofertante_id', ofertante_id)
         
-        query += " ORDER BY p.fecha_creacion DESC"
+        response = query.order('fecha_creacion', desc=True).execute()
         
-        cursor.execute(query, params)
-        productos = cursor.fetchall()
+        productos = response.data
+        for p in productos:
+            if 'usuarios' in p and p['usuarios']:
+                p['nombre'] = p['usuarios']['nombre']
+                p['apellido'] = p['usuarios']['apellido']
+                p['telefono'] = p['usuarios']['telefono']
+            del p['usuarios']
         
-        return jsonify([dict(p) for p in productos]), 200
+        return jsonify(productos), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -416,131 +303,100 @@ def get_productos():
 def get_producto(id):
     if request.method == 'OPTIONS':
         return '', 200
-    
     try:
-        db = get_db()
-        cursor = db.cursor()
+        response = supabase.table('productos_servicios').select('*, usuarios(nombre, apellido, telefono, email)').eq('id', id).execute()
         
-        cursor.execute('''
-            SELECT p.*, u.nombre, u.apellido, u.telefono, u.email
-            FROM productos_servicios p
-            JOIN usuarios u ON p.ofertante_id = u.id
-            WHERE p.id = ?
-        ''', (id,))
-        
-        producto = cursor.fetchone()
-        if not producto:
+        if response.data:
+            producto = response.data[0]
+            if 'usuarios' in producto and producto['usuarios']:
+                producto['nombre'] = producto['usuarios']['nombre']
+                producto['apellido'] = producto['usuarios']['apellido']
+                producto['telefono'] = producto['usuarios']['telefono']
+                producto['email'] = producto['usuarios']['email']
+            del producto['usuarios']
+            return jsonify(producto), 200
+        else:
             return jsonify({'error': 'Producto no encontrado'}), 404
-        
-        return jsonify(dict(producto)), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/productos/<int:id>', methods=['PUT', 'OPTIONS'])
 def update_producto(id):
-    """HU-02: Editar producto - Edición crítica cambia estado a pendiente"""
     if request.method == 'OPTIONS':
         return '', 200
-    
     try:
         data = request.get_json()
-        db = get_db()
-        cursor = db.cursor()
         
-        # Verificar que el producto existe
-        cursor.execute("SELECT * FROM productos_servicios WHERE id = ?", (id,))
-        producto_original = cursor.fetchone()
-        if not producto_original:
+        original = supabase.table('productos_servicios').select('*').eq('id', id).execute()
+        
+        if not original.data:
             return jsonify({'error': 'Producto no encontrado'}), 404
         
-        # Campos críticos (si cambian, el estado vuelve a pendiente)
+        original_producto = original.data[0]
+        
         campos_criticos = ['titulo', 'descripcion', 'precio', 'categoria']
         cambios_criticos = False
         
-        update_fields = []
-        values = []
+        update_data = {}
         
-        for campo in campos_criticos:
-            if campo in data and data[campo] != producto_original[campo]:
-                cambios_criticos = True
-                break
-        
-        # Construir UPDATE dinámico
         if 'titulo' in data:
-            update_fields.append("titulo = ?")
-            values.append(data['titulo'])
+            update_data['titulo'] = data['titulo']
+            if data['titulo'] != original_producto['titulo']:
+                cambios_criticos = True
         
         if 'descripcion' in data:
-            update_fields.append("descripcion = ?")
-            values.append(data['descripcion'])
+            update_data['descripcion'] = data['descripcion']
+            if data['descripcion'] != original_producto['descripcion']:
+                cambios_criticos = True
         
         if 'precio' in data:
             try:
                 precio = float(data['precio'])
                 if precio <= 0:
                     return jsonify({'error': 'El precio debe ser mayor a 0'}), 400
-                update_fields.append("precio = ?")
-                values.append(precio)
+                update_data['precio'] = precio
+                if precio != original_producto['precio']:
+                    cambios_criticos = True
             except:
                 return jsonify({'error': 'El precio debe ser un número válido'}), 400
         
         if 'categoria' in data:
             if data['categoria'] not in ['paseo', 'guarderia', 'alojamiento']:
                 return jsonify({'error': 'Categoría inválida'}), 400
-            update_fields.append("categoria = ?")
-            values.append(data['categoria'])
+            update_data['categoria'] = data['categoria']
+            if data['categoria'] != original_producto['categoria']:
+                cambios_criticos = True
         
-        # Siempre actualizar fecha
-        update_fields.append("fecha_actualizacion = ?")
-        values.append(datetime.now().isoformat())
+        update_data['fecha_actualizacion'] = datetime.now().isoformat()
         
-        # Si hubo cambios críticos, cambiar estado a pendiente (HU-02)
-        if cambios_criticos and producto_original['estado'] == 'aprobado':
-            update_fields.append("estado = ?")
-            values.append('pendiente')
-            update_fields.append("motivo_rechazo = ?")
-            values.append(None)
+        if cambios_criticos and original_producto['estado'] == 'aprobado':
+            update_data['estado'] = 'pendiente'
+            update_data['motivo_rechazo'] = None
         
-        if not update_fields:
+        if not update_data:
             return jsonify({'message': 'No se realizaron cambios'}), 200
         
-        values.append(id)
-        query = f"UPDATE productos_servicios SET {', '.join(update_fields)} WHERE id = ?"
-        cursor.execute(query, values)
-        db.commit()
+        response = supabase.table('productos_servicios').update(update_data).eq('id', id).execute()
         
-        # Obtener producto actualizado
-        cursor.execute('''
-            SELECT p.*, u.nombre, u.apellido 
-            FROM productos_servicios p
-            JOIN usuarios u ON p.ofertante_id = u.id
-            WHERE p.id = ?
-        ''', (id,))
-        
-        producto = cursor.fetchone()
-        return jsonify(dict(producto)), 200
+        if response.data:
+            return jsonify(response.data[0]), 200
+        else:
+            return jsonify({'error': 'No se pudo actualizar'}), 500
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/productos/<int:id>', methods=['DELETE', 'OPTIONS'])
 def delete_producto(id):
-    """HU-02: Eliminar producto (soft delete)"""
     if request.method == 'OPTIONS':
         return '', 200
-    
     try:
-        db = get_db()
-        cursor = db.cursor()
-        
-        cursor.execute("SELECT id FROM productos_servicios WHERE id = ?", (id,))
-        if not cursor.fetchone():
+        existing = supabase.table('productos_servicios').select('id').eq('id', id).execute()
+        if not existing.data:
             return jsonify({'error': 'Producto no encontrado'}), 404
         
-        # Soft delete (activate en lugar de eliminar)
-        cursor.execute("UPDATE productos_servicios SET activo = 0 WHERE id = ?", (id,))
-        db.commit()
+        supabase.table('productos_servicios').update({'activo': 0}).eq('id', id).execute()
         
         return jsonify({'message': 'Producto eliminado correctamente'}), 200
         
@@ -549,115 +405,94 @@ def delete_producto(id):
 
 @app.route('/api/productos/<int:id>/validar', methods=['PUT', 'OPTIONS'])
 def validar_producto(id):
-    """HU-03: Administrador valida producto (aprobar/rechazar)"""
     if request.method == 'OPTIONS':
         return '', 200
-    
     try:
         data = request.get_json()
         estado = data.get('estado')
         motivo_rechazo = data.get('motivo_rechazo')
         
         if estado not in ['aprobado', 'rechazado']:
-            return jsonify({'error': 'Estado inválido. Debe ser aprobado o rechazado'}), 400
+            return jsonify({'error': 'Estado inválido'}), 400
         
-        db = get_db()
-        cursor = db.cursor()
-        
-        cursor.execute("SELECT * FROM productos_servicios WHERE id = ?", (id,))
-        producto = cursor.fetchone()
-        if not producto:
+        existing = supabase.table('productos_servicios').select('id').eq('id', id).execute()
+        if not existing.data:
             return jsonify({'error': 'Producto no encontrado'}), 404
         
-        # Si es rechazado, requiere motivo
         if estado == 'rechazado' and not motivo_rechazo:
             return jsonify({'error': 'Debe proporcionar un motivo de rechazo'}), 400
         
-        cursor.execute('''
-            UPDATE productos_servicios 
-            SET estado = ?, motivo_rechazo = ?, fecha_actualizacion = ?
-            WHERE id = ?
-        ''', (estado, motivo_rechazo, datetime.now().isoformat(), id))
-        
-        db.commit()
-        
-        return jsonify({
-            'message': f'Producto {estado} correctamente',
+        update_data = {
             'estado': estado,
-            'motivo_rechazo': motivo_rechazo
-        }), 200
+            'fecha_actualizacion': datetime.now().isoformat()
+        }
+        
+        if motivo_rechazo:
+            update_data['motivo_rechazo'] = motivo_rechazo
+        
+        supabase.table('productos_servicios').update(update_data).eq('id', id).execute()
+        
+        return jsonify({'message': f'Producto {estado} correctamente'}), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/productos/pendientes', methods=['GET', 'OPTIONS'])
 def get_productos_pendientes():
-    """HU-03: Obtener productos pendientes para validación"""
     if request.method == 'OPTIONS':
         return '', 200
-    
     try:
-        db = get_db()
-        cursor = db.cursor()
+        response = supabase.table('productos_servicios').select('*, usuarios(nombre, apellido, email, telefono)').eq('estado', 'pendiente').eq('activo', 1).order('fecha_creacion').execute()
         
-        cursor.execute('''
-            SELECT p.*, u.nombre, u.apellido, u.email, u.telefono
-            FROM productos_servicios p
-            JOIN usuarios u ON p.ofertante_id = u.id
-            WHERE p.estado = 'pendiente' AND p.activo = 1
-            ORDER BY p.fecha_creacion ASC
-        ''')
+        productos = response.data
+        for p in productos:
+            if 'usuarios' in p and p['usuarios']:
+                p['nombre'] = p['usuarios']['nombre']
+                p['apellido'] = p['usuarios']['apellido']
+                p['email'] = p['usuarios']['email']
+                p['telefono'] = p['usuarios']['telefono']
+            del p['usuarios']
         
-        productos = cursor.fetchall()
-        return jsonify([dict(p) for p in productos]), 200
+        return jsonify(productos), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/mis-productos/<int:ofertante_id>', methods=['GET', 'OPTIONS'])
 def get_mis_productos(ofertante_id):
-    """Obtener productos de un ofertante específico"""
     if request.method == 'OPTIONS':
         return '', 200
-    
     try:
-        db = get_db()
-        cursor = db.cursor()
+        response = supabase.table('productos_servicios').select('*, usuarios(nombre, apellido)').eq('ofertante_id', ofertante_id).eq('activo', 1).order('fecha_creacion', desc=True).execute()
         
-        cursor.execute('''
-            SELECT p.*, u.nombre, u.apellido
-            FROM productos_servicios p
-            JOIN usuarios u ON p.ofertante_id = u.id
-            WHERE p.ofertante_id = ? AND p.activo = 1
-            ORDER BY p.fecha_creacion DESC
-        ''', (ofertante_id,))
+        productos = response.data
+        for p in productos:
+            if 'usuarios' in p and p['usuarios']:
+                p['nombre'] = p['usuarios']['nombre']
+                p['apellido'] = p['usuarios']['apellido']
+            del p['usuarios']
         
-        productos = cursor.fetchall()
-        return jsonify([dict(p) for p in productos]), 200
+        return jsonify(productos), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/productos/aprobados', methods=['GET', 'OPTIONS'])
 def get_productos_aprobados():
-    """Productos aprobados (visibles para demandantes)"""
     if request.method == 'OPTIONS':
         return '', 200
-    
     try:
-        db = get_db()
-        cursor = db.cursor()
+        response = supabase.table('productos_servicios').select('*, usuarios(nombre, apellido, telefono)').eq('estado', 'aprobado').eq('activo', 1).order('fecha_creacion', desc=True).execute()
         
-        cursor.execute('''
-            SELECT p.*, u.nombre, u.apellido, u.telefono
-            FROM productos_servicios p
-            JOIN usuarios u ON p.ofertante_id = u.id
-            WHERE p.estado = 'aprobado' AND p.activo = 1
-            ORDER BY p.fecha_creacion DESC
-        ''')
+        productos = response.data
+        for p in productos:
+            if 'usuarios' in p and p['usuarios']:
+                p['nombre'] = p['usuarios']['nombre']
+                p['apellido'] = p['usuarios']['apellido']
+                p['telefono'] = p['usuarios']['telefono']
+            del p['usuarios']
         
-        productos = cursor.fetchall()
-        return jsonify([dict(p) for p in productos]), 200
+        return jsonify(productos), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -665,32 +500,17 @@ def get_productos_aprobados():
 # ==================== INICIO ====================
 
 if __name__ == '__main__':
-    import os
-    if os.path.exists(DATABASE):
-        print("Base de datos existente encontrada. Actualizando...")
-        # No eliminamos, solo agregamos la tabla nueva si no existe
-    else:
-        print("Creando nueva base de datos...")
-    
-    init_db()
-    print("\n" + "="*50)
-    print("   PETCARE CONNECT - SPRINT 2")
-    print("="*50)
-    print("\n✅ Base de datos inicializada")
+    print("\n" + "="*60)
+    print("   🐾 PETCARE CONNECT - SIN ENCRIPTACIÓN")
+    print("="*60)
+    print(f"\n🔌 Conectando a Supabase: {SUPABASE_URL}")
+    print("\n⚠️  ADVERTENCIA: Contraseñas en texto plano (SOLO DESARROLLO)")
     print("\n📊 CREDENCIALES DE ACCESO:")
     print("   Admin: admin@petcare.com / admin123")
     print("   Cuidador: cuidador@petcare.com / cuidador123")
-    print("\n🔧 NUEVOS ENDPOINTS SPRINT 2:")
-    print("   POST   /api/productos")
-    print("   GET    /api/productos")
-    print("   GET    /api/productos/<id>")
-    print("   PUT    /api/productos/<id>")
-    print("   DELETE /api/productos/<id>")
-    print("   PUT    /api/productos/<id>/validar")
-    print("   GET    /api/productos/pendientes")
-    print("   GET    /api/mis-productos/<ofertante_id>")
-    print("   GET    /api/productos/aprobados")
+    print("   Dueño: dueno@petcare.com / dueno123")
+    print("="*60)
     print("\n🚀 Servidor iniciado en: http://localhost:5000")
-    print("="*50 + "\n")
+    print("="*60 + "\n")
     
     app.run(debug=True, host='localhost', port=5000, threaded=True)
