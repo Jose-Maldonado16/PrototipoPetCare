@@ -1,8 +1,3 @@
-"""
-PetCare Connect - Versión para Render (con Supabase)
-Ejecutar en producción: gunicorn render_app:app
-"""
-
 import os
 import hashlib
 import re
@@ -22,13 +17,13 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    print("❌ Error: SUPABASE_URL y SUPABASE_KEY son requeridos")
-    print("Configúralos como variables de entorno en Render")
-    SUPABASE_URL = "https://placeholder.supabase.co"
-    SUPABASE_KEY = "placeholder"
+print(f"🔍 SUPABASE_URL: {'✅ CONFIGURADA' if SUPABASE_URL else '❌ NO CONFIGURADA'}")
+print(f"🔍 SUPABASE_KEY: {'✅ CONFIGURADA' if SUPABASE_KEY else '❌ NO CONFIGURADA'}")
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("❌ Error: Faltan variables de entorno SUPABASE_URL y SUPABASE_KEY")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -37,6 +32,16 @@ def validate_email(email):
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
+# ==================== HEALTH CHECK ====================
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        'status': 'ok',
+        'supabase_configured': SUPABASE_URL is not None and SUPABASE_KEY is not None,
+        'message': 'API funcionando correctamente'
+    }), 200
+
 # ==================== ENDPOINTS USUARIOS ====================
 
 @app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
@@ -44,6 +49,9 @@ def login():
     if request.method == 'OPTIONS':
         return '', 200
     try:
+        if not supabase:
+            return jsonify({'error': 'Supabase no configurado'}), 500
+            
         data = request.get_json()
         email = data.get('email')
         password = data.get('password')
@@ -57,7 +65,7 @@ def login():
         
         if response.data:
             user = response.data[0]
-            if user['activo'] != 1:
+            if user.get('activo', 1) != 1:
                 return jsonify({'error': 'Usuario inactivo'}), 401
             del user['password']
             return jsonify(user), 200
@@ -71,6 +79,9 @@ def get_usuarios():
     if request.method == 'OPTIONS':
         return '', 200
     try:
+        if not supabase:
+            return jsonify({'error': 'Supabase no configurado'}), 500
+            
         response = supabase.table('usuarios').select("*").order('id', desc=True).execute()
         users = response.data
         for user in users:
@@ -84,6 +95,9 @@ def get_usuario(id):
     if request.method == 'OPTIONS':
         return '', 200
     try:
+        if not supabase:
+            return jsonify({'error': 'Supabase no configurado'}), 500
+            
         response = supabase.table('usuarios').select("*").eq('id', id).execute()
         if response.data:
             user = response.data[0]
@@ -99,6 +113,9 @@ def create_usuario():
     if request.method == 'OPTIONS':
         return '', 200
     try:
+        if not supabase:
+            return jsonify({'error': 'Supabase no configurado'}), 500
+            
         data = request.get_json()
         
         required = ['nombre', 'apellido', 'email', 'password', 'rol']
@@ -149,6 +166,9 @@ def update_usuario(id):
     if request.method == 'OPTIONS':
         return '', 200
     try:
+        if not supabase:
+            return jsonify({'error': 'Supabase no configurado'}), 500
+            
         data = request.get_json()
         
         # Verificar si existe
@@ -198,6 +218,9 @@ def delete_usuario(id):
     if request.method == 'OPTIONS':
         return '', 200
     try:
+        if not supabase:
+            return jsonify({'error': 'Supabase no configurado'}), 500
+            
         # Verificar que no sea el admin principal
         admin_check = supabase.table('usuarios').select("email").eq('id', id).execute()
         if admin_check.data and admin_check.data[0]['email'] == 'admin@petcare.com':
@@ -212,13 +235,16 @@ def delete_usuario(id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ==================== ENDPOINTS PRODUCTOS (Sprint 2) ====================
+# ==================== ENDPOINTS PRODUCTOS ====================
 
 @app.route('/api/productos', methods=['POST', 'OPTIONS'])
 def create_producto():
     if request.method == 'OPTIONS':
         return '', 200
     try:
+        if not supabase:
+            return jsonify({'error': 'Supabase no configurado'}), 500
+            
         data = request.get_json()
         
         required = ['titulo', 'descripcion', 'precio', 'categoria', 'ofertante_id']
@@ -241,9 +267,6 @@ def create_producto():
         if not ofertante.data:
             return jsonify({'error': 'Ofertante no encontrado'}), 404
         
-        if ofertante.data[0]['rol'] not in ['cuidador', 'administrador']:
-            return jsonify({'error': 'Solo cuidadores pueden ofertar servicios'}), 403
-        
         new_producto = {
             'titulo': data['titulo'],
             'descripcion': data['descripcion'],
@@ -265,99 +288,42 @@ def create_producto():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/productos', methods=['GET', 'OPTIONS'])
-def get_productos():
+@app.route('/api/productos/aprobados', methods=['GET', 'OPTIONS'])
+def get_productos_aprobados():
     if request.method == 'OPTIONS':
         return '', 200
     try:
-        estado = request.args.get('estado')
-        ofertante_id = request.args.get('ofertante_id')
-        
-        query = supabase.table('productos_servicios').select("*, usuarios(nombre, apellido, email)").eq('activo', 1)
-        
-        if estado:
-            query = query.eq('estado', estado)
-        if ofertante_id:
-            query = query.eq('ofertante_id', int(ofertante_id))
-        
-        response = query.order('fecha_creacion', desc=True).execute()
-        
+        if not supabase:
+            return jsonify({'error': 'Supabase no configurado'}), 500
+            
+        response = supabase.table('productos_servicios').select("*").eq('estado', 'aprobado').eq('activo', 1).order('fecha_creacion', desc=True).execute()
         return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/productos/<int:id>', methods=['GET', 'OPTIONS'])
-def get_producto(id):
+@app.route('/api/productos/pendientes', methods=['GET', 'OPTIONS'])
+def get_productos_pendientes():
     if request.method == 'OPTIONS':
         return '', 200
     try:
-        response = supabase.table('productos_servicios').select("*, usuarios(nombre, apellido, email)").eq('id', id).execute()
-        
-        if response.data:
-            return jsonify(response.data[0]), 200
-        else:
-            return jsonify({'error': 'Producto no encontrado'}), 404
+        if not supabase:
+            return jsonify({'error': 'Supabase no configurado'}), 500
+            
+        response = supabase.table('productos_servicios').select("*").eq('estado', 'pendiente').eq('activo', 1).order('fecha_creacion', asc=True).execute()
+        return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/productos/<int:id>', methods=['PUT', 'OPTIONS'])
-def update_producto(id):
+@app.route('/api/mis-productos/<int:ofertante_id>', methods=['GET', 'OPTIONS'])
+def get_mis_productos(ofertante_id):
     if request.method == 'OPTIONS':
         return '', 200
     try:
-        data = request.get_json()
-        
-        # Obtener producto original
-        original = supabase.table('productos_servicios').select("*").eq('id', id).execute()
-        if not original.data:
-            return jsonify({'error': 'Producto no encontrado'}), 404
-        
-        original_data = original.data[0]
-        
-        # Campos críticos
-        campos_criticos = ['titulo', 'descripcion', 'precio', 'categoria']
-        cambios_criticos = False
-        
-        update_data = {'fecha_actualizacion': datetime.now().isoformat()}
-        
-        for campo in campos_criticos:
-            if campo in data and data[campo] != original_data[campo]:
-                cambios_criticos = True
-                update_data[campo] = data[campo]
-        
-        if 'titulo' in data:
-            update_data['titulo'] = data['titulo']
-        if 'descripcion' in data:
-            update_data['descripcion'] = data['descripcion']
-        if 'precio' in data:
-            update_data['precio'] = float(data['precio'])
-        if 'categoria' in data:
-            update_data['categoria'] = data['categoria']
-        
-        if cambios_criticos and original_data['estado'] == 'aprobado':
-            update_data['estado'] = 'pendiente'
-            update_data['motivo_rechazo'] = None
-        
-        response = supabase.table('productos_servicios').update(update_data).eq('id', id).execute()
-        
-        if response.data:
-            return jsonify(response.data[0]), 200
-        else:
-            return jsonify({'error': 'Error al actualizar'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/productos/<int:id>', methods=['DELETE', 'OPTIONS'])
-def delete_producto(id):
-    if request.method == 'OPTIONS':
-        return '', 200
-    try:
-        response = supabase.table('productos_servicios').update({'activo': 0}).eq('id', id).execute()
-        
-        if response.data:
-            return jsonify({'message': 'Producto eliminado correctamente'}), 200
-        else:
-            return jsonify({'error': 'Producto no encontrado'}), 404
+        if not supabase:
+            return jsonify({'error': 'Supabase no configurado'}), 500
+            
+        response = supabase.table('productos_servicios').select("*").eq('ofertante_id', ofertante_id).eq('activo', 1).order('fecha_creacion', desc=True).execute()
+        return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -366,6 +332,9 @@ def validar_producto(id):
     if request.method == 'OPTIONS':
         return '', 200
     try:
+        if not supabase:
+            return jsonify({'error': 'Supabase no configurado'}), 500
+            
         data = request.get_json()
         estado = data.get('estado')
         motivo_rechazo = data.get('motivo_rechazo')
@@ -378,53 +347,20 @@ def validar_producto(id):
             'fecha_actualizacion': datetime.now().isoformat()
         }
         
-        if estado == 'rechazado':
-            if not motivo_rechazo:
-                return jsonify({'error': 'Debe proporcionar un motivo de rechazo'}), 400
+        if estado == 'rechazado' and motivo_rechazo:
             update_data['motivo_rechazo'] = motivo_rechazo
-        else:
-            update_data['motivo_rechazo'] = None
         
         response = supabase.table('productos_servicios').update(update_data).eq('id', id).execute()
         
         if response.data:
-            return jsonify({'message': f'Producto {estado} correctamente', 'estado': estado}), 200
+            return jsonify({'message': f'Producto {estado} correctamente'}), 200
         else:
             return jsonify({'error': 'Producto no encontrado'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/productos/pendientes', methods=['GET', 'OPTIONS'])
-def get_productos_pendientes():
-    if request.method == 'OPTIONS':
-        return '', 200
-    try:
-        response = supabase.table('productos_servicios').select("*, usuarios(nombre, apellido, email)").eq('estado', 'pendiente').eq('activo', 1).order('fecha_creacion', asc=True).execute()
-        return jsonify(response.data), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/mis-productos/<int:ofertante_id>', methods=['GET', 'OPTIONS'])
-def get_mis_productos(ofertante_id):
-    if request.method == 'OPTIONS':
-        return '', 200
-    try:
-        response = supabase.table('productos_servicios').select("*").eq('ofertante_id', ofertante_id).eq('activo', 1).order('fecha_creacion', desc=True).execute()
-        return jsonify(response.data), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/productos/aprobados', methods=['GET', 'OPTIONS'])
-def get_productos_aprobados():
-    if request.method == 'OPTIONS':
-        return '', 200
-    try:
-        response = supabase.table('productos_servicios').select("*, usuarios(nombre, apellido, telefono)").eq('estado', 'aprobado').eq('activo', 1).order('fecha_creacion', desc=True).execute()
-        return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 # ==================== INICIO ====================
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
