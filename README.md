@@ -1,122 +1,176 @@
-# 🐾 PetCare - Sistema de Gestión de Usuarios
+# Especificaciones de Comportamiento - Sprint 2
+## PetCare Connect - Gestión de Productos/Servicios
 
-[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
-[![Flask](https://img.shields.io/badge/Flask-2.0+-green.svg)](https://flask.palletsprojects.com/)
-[![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
-[![JavaScript](https://img.shields.io/badge/JavaScript-ES6-yellow.svg)](https://developer.mozilla.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+## HU-01: Registro de Producto/Servicio (Ofertante)
 
-Sistema completo de gestión de usuarios para la plataforma PetCare con autenticación, CRUD completo, búsqueda en tiempo real, estadísticas interactivas y diseño responsivo.
+**Como** Ofertante (cuidador) **Quiero** registrar un nuevo servicio **Para** que pueda ser ofertado en la plataforma
 
-## 📸 Capturas de Pantalla
+### Especificación 1: Registro exitoso - estado pendiente
 
-### Pantalla de Login
-![Login Screen](docs/images/screenshot1.png.png)
+```gherkin
+Scenario: Registro exitoso de un servicio
+  Given estoy autenticado como cuidador
+  And tengo los siguientes datos del servicio:
+    | Campo       | Valor                    |
+    | titulo      | Paseo de mascotas        |
+    | descripcion | Paseo de 30 minutos      |
+    | precio      | 50.00                    |
+    | categoria   | paseo                    |
+  When envío la solicitud POST /api/productos
+  Then el sistema debe crear el servicio
+  And el estado del servicio debe ser "pendiente"
+  And el servicio no debe ser visible para demandantes
+  And el código de respuesta debe ser 201
+```
 
-### Dashboard Principal
-![Dashboard](docs/images/screenshot2.png.png)
+### Especificación 2: Registro con datos incompletos
 
-> **Nota:** Agrega más capturas de pantalla (crear usuario, editar, etc.) en la carpeta `docs/images/` para mostrar todas las funcionalidades.
+```gherkin
+Scenario: Intento de registro con datos incompletos
+  Given estoy autenticado como cuidador
+  When envío la solicitud POST /api/productos sin el campo "titulo"
+  Then el sistema debe retornar error 400
+  And el mensaje debe indicar "El campo titulo es requerido"
+  And el servicio no debe ser creado
+```
 
-## 🎯 Funcionalidades Implementadas
+### Especificación 3: Registro con precio inválido
 
-| ID | Historia de Usuario | Estado |
-|----|--------------------|--------|
-| US-01 | Iniciar sesión con email y contraseña | ✅ Completado |
-| US-02 | Crear nuevos usuarios | ✅ Completado |
-| US-03 | Ver lista de todos los usuarios | ✅ Completado |
-| US-04 | Editar datos de un usuario | ✅ Completado |
-| US-05 | Eliminar un usuario del sistema | ✅ Completado |
-| US-06 | Registrarse en la plataforma | ✅ Completado |
-| US-07 | Buscar usuarios por nombre, email o rol | ✅ Completado |
+```gherkin
+Scenario: Intento de registro con precio negativo
+  Given estoy autenticado como cuidador
+  And tengo un precio de -10.00
+  When envío la solicitud POST /api/productos
+  Then el sistema debe retornar error 400
+  And el mensaje debe indicar "El precio debe ser mayor a 0"
+```
 
-### Características Adicionales
-- ✅ Dashboard con estadísticas en tiempo real
-- ✅ Filtrado por rol (dueño, cuidador, administrador)
-- ✅ Filtrado por estado (activo/inactivo)
-- ✅ Modales de confirmación para acciones críticas
-- ✅ Mensajes de éxito/error con animaciones
-- ✅ Diseño completamente responsivo
-- ✅ Almacenamiento de sesión en localStorage
-- ✅ Validación de formularios en tiempo real
+### Especificación 4: Registro con categoría inválida
 
-## 🛠️ Tecnologías Utilizadas
+```gherkin
+Scenario: Intento de registro con categoría no permitida
+  Given estoy autenticado como cuidador
+  When envío la solicitud POST /api/productos con categoria "veterinaria"
+  Then el sistema debe retornar error 400
+  And el mensaje debe indicar "Categoría inválida"
+```
 
-| Tecnología | Versión | Propósito |
-|------------|---------|-----------|
-| **Python** | 3.7+ | Lenguaje backend |
-| **Flask** | 2.0+ | Framework web |
-| **Flask-CORS** | 6.0+ | Manejo de CORS |
-| **SQLite** | 3 | Base de datos |
-| **HTML5** | - | Estructura del frontend |
-| **CSS3** | - | Estilos y diseño |
-| **JavaScript** | ES6 | Lógica e interactividad |
+## HU-02: Edición o Eliminación de Producto/Servicio (Ofertante)
 
-## 📁 Estructura del Proyecto
+**Como** Ofertante **Quiero** modificar mis servicios **Para** mantener actualizada mi oferta
 
+### Especificación 5: Edición crítica (precio) - cambia estado a pendiente
 
-PrototipoPetCare
+```gherkin
+Scenario: Edición del precio de un servicio aprobado
+  Given tengo un servicio aprobado con precio 50.00
+  When modifico el precio a 60.00
+  Then el sistema debe actualizar el servicio
+  And el estado del servicio debe cambiar a "pendiente"
+  And el servicio debe necesitar nueva validación
+  And el código de respuesta debe ser 200
+```
 
-│
-├── backend/ # Servidor backend
-│ ├── app.py # API REST principal (Flask)
-│ ├── requirements.txt # Dependencias Python
-│ ├── create_database.py # Script para crear BD manualmente
-│ └── petcare.db # Base de datos SQLite (autogenerado)
-│
-├── frontend/ # Cliente frontend
-│ ├── index.html # SPA principal
-│ ├── css/
-│ │ └── style.css # Estilos completos
-│ └── js/
-│ ├── api.js # Cliente API (fetch)
-│ └── app.js # Lógica de la aplicación
-│
-├── docs/ # Documentación
-│ └── images/ # Imágenes para README
-│ ├── screenshot1.png.png # Login screen
-│ └── screenshot2.png.png # Dashboard
-│
-├── .gitignore # Archivos ignorados por Git
-└── README.md # Documentación del proyecto
+### Especificación 6: Edición crítica (título) - cambia estado a pendiente
 
+```gherkin
+Scenario: Edición del título de un servicio aprobado
+  Given tengo un servicio aprobado con título "Paseo mañanero"
+  When modifico el título a "Paseo completo"
+  Then el sistema debe actualizar el servicio
+  And el estado del servicio debe cambiar a "pendiente"
+```
 
-# 🚀 Instalación y Ejecución
+### Especificación 7: Edición no crítica - mantiene estado
 
-## Requisitos Previos
-- Python 3.7 o superior
-- Pip (gestor de paquetes de Python)
-- Navegador web moderno (Chrome, Firefox, Edge)
+```gherkin
+Scenario: Edición solo de descripción de un servicio aprobado
+  Given tengo un servicio aprobado
+  When modifico solo la descripción del servicio
+  Then el sistema debe actualizar el servicio
+  And el estado del servicio debe permanecer "aprobado"
+  And el código de respuesta debe ser 200
+```
 
-## 1. Configuración del Backend
+### Especificación 8: Eliminación exitosa de servicio
 
- Navegar al directorio del backend
-cd backend
+```gherkin
+Scenario: Eliminación exitosa de un servicio
+  Given tengo un servicio registrado
+  When envío la solicitud DELETE /api/productos/{id}
+  Then el sistema debe marcar el servicio como inactivo (soft delete)
+  And el servicio no debe aparecer en listados
+  And el código de respuesta debe ser 200
+```
 
- Crear entorno virtual
-python -m venv venv
+### Especificación 9: Eliminación de servicio inexistente
 
- Activar entorno virtual
- En Windows:
-venv\Scripts\activate
- En Linux/Mac:
-source venv/bin/activate
+```gherkin
+Scenario: Intento de eliminar servicio que no existe
+  Given no existe un servicio con ID 9999
+  When envío la solicitud DELETE /api/productos/9999
+  Then el sistema debe retornar error 404
+  And el mensaje debe indicar "Producto no encontrado"
+```
 
- Instalar dependencias
-pip install -r requirements.txt
+## HU-03: Validación de Contenido (Administrador)
 
- Ejecutar el servidor Flask
-python app.py
+**Como** Administrador **Quiero** revisar productos pendientes **Para** garantizar la calidad de la plataforma
 
- Abrir una nueva terminal y navegar al frontend
-cd frontend
+### Especificación 10: Aprobación exitosa de servicio pendiente
 
-Iniciar servidor HTTP
-python -m http.server 3000
+```gherkin
+Scenario: Aprobación exitosa de un servicio
+  Given estoy autenticado como administrador
+  And existe un servicio en estado "pendiente"
+  When envío la solicitud PUT /api/productos/{id}/validar con estado "aprobado"
+  Then el sistema debe cambiar el estado a "aprobado"
+  And el servicio debe ser visible para demandantes
+  And el código de respuesta debe ser 200
+```
 
-##Credenciales de Acceso
+### Especificación 11: Rechazo de servicio con motivo
 
-Rol	          Email	          Contraseña #
-Administrador  	admin@petcare.com	admin123 #
-Dueño          	maria@petcare.com	maria123 #
-Cuidador       	ana@petcare.com	ana123
+```gherkin
+Scenario: Rechazo de servicio con motivo
+  Given estoy autenticado como administrador
+  And existe un servicio en estado "pendiente"
+  When envío la solicitud PUT /api/productos/{id}/validar con:
+    | estado        | rechazado |
+    | motivo_rechazo| Precio no competitivo |
+  Then el sistema debe cambiar el estado a "rechazado"
+  And el motivo de rechazo debe quedar registrado
+  And el servicio no debe ser visible para demandantes
+  And el código de respuesta debe ser 200
+```
+
+### Especificación 12: Rechazo sin motivo (caso borde)
+
+```gherkin
+Scenario: Intento de rechazo sin proporcionar motivo
+  Given estoy autenticado como administrador
+  And existe un servicio en estado "pendiente"
+  When envío la solicitud PUT /api/productos/{id}/validar con estado "rechazado" sin motivo
+  Then el sistema debe retornar error 400
+  And el mensaje debe indicar "Debe proporcionar un motivo de rechazo"
+```
+
+### Especificación 13: Aprobar servicio ya aprobado
+
+```gherkin
+Scenario: Intento de aprobar servicio ya aprobado
+  Given estoy autenticado como administrador
+  And existe un servicio en estado "aprobado"
+  When envío la solicitud PUT /api/productos/{id}/validar con estado "aprobado"
+  Then el sistema debe retornar éxito (200)
+  And el estado debe permanecer "aprobado"
+```
+
+## Resumen de Cobertura de Specs
+
+| Tipo de caso | Especificaciones | Cobertura |
+|--------------|------------------|-----------|
+| Happy Path (éxito) | #1, #5, #7, #8, #10, #11 | ✅ 6 |
+| Casos de borde | #4, #6, #9, #13 | ✅ 4 |
+| Validaciones/Errores | #2, #3, #12 | ✅ 3 |
+| **Total** | **13 especificaciones** | **✅ 100%** |
