@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: petcare-connect
+    runtime: python
+    repo: https://github.com/Jose-Maldonado16/PrototipoPetCare
+    plan: free
+    buildCommand: |
+      cd backend
+      pip install -r requirements.txt
+    startCommand: |
+      cd backend
+      gunicorn render_app:app
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.0
