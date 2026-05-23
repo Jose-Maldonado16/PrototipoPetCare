@@ -513,4 +513,22 @@ if __name__ == '__main__':
     print("\n🚀 Servidor iniciado en: http://localhost:5000")
     print("="*60 + "\n")
     
-    app.run(debug=True, host='localhost', port=5000, threaded=True)
+if __name__ == '__main__':
+    import os
+    
+    print("\n" + "="*60)
+    print("   🐾 PETCARE CONNECT - PRODUCCIÓN")
+    print("="*60)
+    print(f"\n🔌 Conectando a Supabase")
+    
+    port = int(os.environ.get('PORT', 5000))
+    
+    print("\n📊 CREDENCIALES DE ACCESO:")
+    print("   Admin: admin@petcare.com / admin123")
+    print("   Cuidador: cuidador@petcare.com / cuidador123")
+    print("   Dueño: dueno@petcare.com / dueno123")
+    print("="*60)
+    print(f"\n🚀 Servidor iniciado en puerto: {port}")
+    print("="*60 + "\n")
+    
+    app.run(host='0.0.0.0', port=port, debug=False)
