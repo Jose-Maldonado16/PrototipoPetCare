@@ -649,8 +649,8 @@ def get_solicitudes_recibidas():
         if not productos_ids:
             return jsonify([]), 200
         
-        response = supabase.table('solicitudes').select('*, productos_servicios(titulo, precio, categoria), usuarios_solicitante!solicitudes_solicitante_id_fkey(nombre, apellido, email, telefono)').in_('producto_id', productos_ids).eq('activo', 1).order('fecha_solicitud', desc=True).execute()
-        
+# ✅ Línea correcta
+response = supabase.table('solicitudes').select('*, productos_servicios(titulo, precio, categoria), usuarios!solicitudes_solicitante_id_fkey(nombre, apellido, email, telefono)').in_('producto_id', productos_ids).eq('activo', 1).order('fecha_solicitud', desc=True).execute()        
         solicitudes = response.data
         for s in solicitudes:
             if 'productos_servicios' in s:
