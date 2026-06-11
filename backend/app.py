@@ -615,6 +615,7 @@ def get_mis_solicitudes():
         if not solicitante_id:
             return jsonify({'error': 'solicitante_id es requerido'}), 400
         
+        # ✅ CORREGIDO: usar 'usuarios' en lugar de 'usuarios_solicitante'
         response = supabase.table('solicitudes').select('*, productos_servicios(titulo, precio, categoria, usuarios(nombre, apellido, email))').eq('solicitante_id', solicitante_id).eq('activo', 1).order('fecha_solicitud', desc=True).execute()
         
         solicitudes = response.data
@@ -643,14 +644,16 @@ def get_solicitudes_recibidas():
         if not cuidador_id:
             return jsonify({'error': 'cuidador_id es requerido'}), 400
         
+        # Obtener productos del cuidador
         productos = supabase.table('productos_servicios').select('id').eq('ofertante_id', cuidador_id).execute()
         productos_ids = [p['id'] for p in productos.data] if productos.data else []
         
         if not productos_ids:
             return jsonify([]), 200
         
-# ✅ Línea correcta
-response = supabase.table('solicitudes').select('*, productos_servicios(titulo, precio, categoria), usuarios!solicitudes_solicitante_id_fkey(nombre, apellido, email, telefono)').in_('producto_id', productos_ids).eq('activo', 1).order('fecha_solicitud', desc=True).execute()        
+        # ✅ CORREGIDO: usar 'usuarios' en lugar de 'usuarios_solicitante'
+        response = supabase.table('solicitudes').select('*, productos_servicios(titulo, precio, categoria), usuarios!solicitudes_solicitante_id_fkey(nombre, apellido, email, telefono)').in_('producto_id', productos_ids).eq('activo', 1).order('fecha_solicitud', desc=True).execute()
+        
         solicitudes = response.data
         for s in solicitudes:
             if 'productos_servicios' in s:
@@ -659,12 +662,13 @@ response = supabase.table('solicitudes').select('*, productos_servicios(titulo, 
                 s['producto_categoria'] = s['productos_servicios']['categoria']
             del s['productos_servicios']
             
-            if 'usuarios_solicitante' in s:
-                s['solicitante_nombre'] = s['usuarios_solicitante']['nombre']
-                s['solicitante_apellido'] = s['usuarios_solicitante']['apellido']
-                s['solicitante_email'] = s['usuarios_solicitante']['email']
-                s['solicitante_telefono'] = s['usuarios_solicitante']['telefono']
-            del s['usuarios_solicitante']
+            # ✅ CORREGIDO: acceder a los datos del usuario
+            if 'usuarios' in s:
+                s['solicitante_nombre'] = s['usuarios']['nombre']
+                s['solicitante_apellido'] = s['usuarios']['apellido']
+                s['solicitante_email'] = s['usuarios']['email']
+                s['solicitante_telefono'] = s['usuarios']['telefono']
+            del s['usuarios']
         
         return jsonify(solicitudes), 200
         
@@ -830,12 +834,14 @@ def get_calificaciones_cuidador(cuidador_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/api/solicitudes/<int:id>', methods=['GET', 'OPTIONS'])
 def get_solicitud(id):
     if request.method == 'OPTIONS':
         return '', 200
     try:
-        response = supabase.table('solicitudes').select('*, productos_servicios(*), usuarios_solicitante!solicitudes_solicitante_id_fkey(nombre, apellido, email, telefono)').eq('id', id).execute()
+        # ✅ CORREGIDO: usar 'usuarios' en lugar de 'usuarios_solicitante'
+        response = supabase.table('solicitudes').select('*, productos_servicios(*), usuarios!solicitudes_solicitante_id_fkey(nombre, apellido, email, telefono)').eq('id', id).execute()
         
         if response.data:
             solicitud = response.data[0]
@@ -843,9 +849,9 @@ def get_solicitud(id):
                 solicitud['producto'] = solicitud['productos_servicios']
             del solicitud['productos_servicios']
             
-            if 'usuarios_solicitante' in solicitud:
-                solicitud['solicitante'] = solicitud['usuarios_solicitante']
-            del solicitud['usuarios_solicitante']
+            if 'usuarios' in solicitud:
+                solicitud['solicitante'] = solicitud['usuarios']
+            del solicitud['usuarios']
             
             return jsonify(solicitud), 200
         else:
@@ -853,7 +859,6 @@ def get_solicitud(id):
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 # ==================== INICIO ====================
 
 if __name__ == '__main__':
