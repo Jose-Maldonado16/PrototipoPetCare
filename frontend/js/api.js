@@ -1,7 +1,4 @@
-
-const API_BASE_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:5000/api'      // Desarrollo local
-    : '/api';      
+const API_BASE_URL = '/api';
 
 export const api = {
     // ==================== USUARIOS ====================
@@ -11,7 +8,6 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
         });
-        
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Error en el inicio de sesión');
@@ -43,7 +39,6 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(usuarioData)
         });
-        
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Error al crear usuario');
@@ -57,7 +52,6 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(usuarioData)
         });
-        
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Error al actualizar usuario');
@@ -69,7 +63,6 @@ export const api = {
         const response = await fetch(`${API_BASE_URL}/usuarios/${id}`, {
             method: 'DELETE'
         });
-        
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Error al eliminar usuario');
@@ -77,15 +70,13 @@ export const api = {
         return await response.json();
     },
     
-    // ==================== PRODUCTOS/SERVICIOS ====================
-    
+    // ==================== PRODUCTOS ====================
     async createProducto(data) {
         const response = await fetch(`${API_BASE_URL}/productos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
-        
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Error al crear producto');
@@ -97,7 +88,6 @@ export const api = {
         let url = `${API_BASE_URL}/productos?`;
         if (estado) url += `estado=${estado}&`;
         if (ofertanteId) url += `ofertante_id=${ofertanteId}&`;
-        
         const response = await fetch(url);
         if (!response.ok) {
             const error = await response.json();
@@ -121,7 +111,6 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
-        
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Error al actualizar producto');
@@ -133,7 +122,6 @@ export const api = {
         const response = await fetch(`${API_BASE_URL}/productos/${id}`, {
             method: 'DELETE'
         });
-        
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Error al eliminar producto');
@@ -147,7 +135,6 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ estado, motivo_rechazo: motivoRechazo })
         });
-        
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Error al validar producto');
@@ -178,6 +165,114 @@ export const api = {
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Error al obtener productos aprobados');
+        }
+        return await response.json();
+    },
+    
+    // ==================== SPRINT 3 - SOLICITUDES ====================
+    async buscarProductos(filtro = 'recientes', categoria = null, busqueda = null) {
+        let url = `${API_BASE_URL}/productos/buscar?filtro=${filtro}`;
+        if (categoria && categoria !== 'todos') url += `&categoria=${categoria}`;
+        if (busqueda) url += `&busqueda=${encodeURIComponent(busqueda)}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al buscar productos');
+        }
+        return await response.json();
+    },
+    
+    async crearSolicitud(data) {
+        const response = await fetch(`${API_BASE_URL}/solicitudes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al crear solicitud');
+        }
+        return await response.json();
+    },
+    
+    async getMisSolicitudes(solicitanteId) {
+        const response = await fetch(`${API_BASE_URL}/mis-solicitudes?solicitante_id=${solicitanteId}`);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al obtener solicitudes');
+        }
+        return await response.json();
+    },
+    
+    async getSolicitudesRecibidas(cuidadorId) {
+        const response = await fetch(`${API_BASE_URL}/solicitudes-recibidas?cuidador_id=${cuidadorId}`);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al obtener solicitudes recibidas');
+        }
+        return await response.json();
+    },
+    
+    async responderSolicitud(id, estado, motivoRechazo = null) {
+        const response = await fetch(`${API_BASE_URL}/solicitudes/${id}/responder`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ estado, motivo_rechazo: motivoRechazo })
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al responder solicitud');
+        }
+        return await response.json();
+    },
+    
+    async getNotificaciones(usuarioId) {
+        const response = await fetch(`${API_BASE_URL}/notificaciones?usuario_id=${usuarioId}`);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al obtener notificaciones');
+        }
+        return await response.json();
+    },
+    
+    async marcarNotificacionLeida(id) {
+        const response = await fetch(`${API_BASE_URL}/notificaciones/${id}/leer`, {
+            method: 'PUT'
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al marcar notificación');
+        }
+        return await response.json();
+    },
+    
+    async crearCalificacion(data) {
+        const response = await fetch(`${API_BASE_URL}/calificaciones`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al crear calificación');
+        }
+        return await response.json();
+    },
+    
+    async getCalificacionesCuidador(cuidadorId) {
+        const response = await fetch(`${API_BASE_URL}/calificaciones/cuidador/${cuidadorId}`);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al obtener calificaciones');
+        }
+        return await response.json();
+    },
+    
+    async getSolicitud(id) {
+        const response = await fetch(`${API_BASE_URL}/solicitudes/${id}`);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al obtener solicitud');
         }
         return await response.json();
     }
