@@ -811,28 +811,54 @@ def get_calificaciones_cuidador(cuidador_id):
     if request.method == 'OPTIONS':
         return '', 200
     try:
-        response = supabase.table('calificaciones').select('*, usuarios_solicitante!calificaciones_solicitante_id_fkey(nombre, apellido)').eq('cuidador_id', cuidador_id).order('fecha', desc=True).execute()
+        print(f"🔍 Buscando calificaciones para cuidador_id: {cuidador_id}")
+        
+        # Obtener todas las calificaciones del cuidador
+        response = supabase.table('calificaciones').select('*, solicitante_id').eq('cuidador_id', cuidador_id).order('fecha', desc=True).execute()
+        
+        print(f"📊 Respuesta de Supabase: {len(response.data)} calificaciones encontradas")
         
         calificaciones = response.data
-        for c in calificaciones:
-            if 'usuarios_solicitante' in c:
-                c['solicitante_nombre'] = c['usuarios_solicitante']['nombre']
-                c['solicitante_apellido'] = c['usuarios_solicitante']['apellido']
-            del c['usuarios_solicitante']
         
+        # Para cada calificación, obtener datos del solicitante
+        for c in calificaciones:
+            try:
+                solicitante = supabase.table('usuarios').select('nombre, apellido').eq('id', c['solicitante_id']).execute()
+                if solicitante.data:
+                    c['solicitante_nombre'] = solicitante.data[0]['nombre']
+                    c['solicitante_apellido'] = solicitante.data[0]['apellido']
+                else:
+                    c['solicitante_nombre'] = 'Usuario'
+                    c['solicitante_apellido'] = ''
+            except Exception as e:
+                print(f"⚠️ Error obteniendo solicitante: {e}")
+                c['solicitante_nombre'] = 'Usuario'
+                c['solicitante_apellido'] = ''
+        
+        # Calcular promedio
         if calificaciones:
-            promedio = sum(c['puntuacion'] for c in calificaciones) / len(calificaciones)
+            total_puntos = sum(c['puntuacion'] for c in calificaciones)
+            promedio = total_puntos / len(calificaciones)
         else:
             promedio = 0
         
-        return jsonify({
+        resultado = {
             'calificaciones': calificaciones,
             'promedio': round(promedio, 2),
             'total': len(calificaciones)
-        }), 200
+        }
+        
+        print(f"✅ Promedio calculado: {resultado['promedio']}")
+        return jsonify(resultado), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"❌ Error en get_calificaciones_cuidador: {str(e)}")
+        return jsonify({
+            'calificaciones': [],
+            'promedio': 0,
+            'total': 0,
+            'error': str(e)
+        }), 200  # Retornar 200 con datos vacíos en lugar de 500
 
 
 @app.route('/api/solicitudes/<int:id>', methods=['GET', 'OPTIONS'])
