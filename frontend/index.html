@@ -3,25 +3,289 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PetCare - Gestión de Usuarios</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>PetCare Connect - Cuidado de mascotas confiable</title>
+    <link rel="stylesheet" href="css/landing.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="app">
-        <div class="container">
-            <div class="auth-container">
-                <div class="auth-card">
-                    <div class="logo">
-                        <h1>🐾 PetCare</h1>
-                        <p>Gestión de Usuarios</p>
+    <!-- ==================== NAVEGACIÓN ==================== -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <div class="logo">
+                <span class="logo-icon">🐾</span>
+                <span class="logo-text">PetCare Connect</span>
+            </div>
+            <div class="nav-links">
+                <a href="#inicio">Inicio</a>
+                <a href="#servicios">Servicios</a>
+                <a href="#beneficios">Beneficios</a>
+                <a href="#como-funciona">¿Cómo funciona?</a>
+                <a href="#testimonios">Testimonios</a>
+                <button class="btn-login-nav" id="btnLoginNav">Ingresar</button>
+            </div>
+            <div class="mobile-menu-btn" id="mobileMenuBtn">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ==================== HERO SECTION ==================== -->
+    <section id="inicio" class="hero">
+        <div class="container hero-container">
+            <div class="hero-content">
+                <div class="hero-badge">🐕 Cuidado de mascotas profesional</div>
+                <h1 class="hero-title">
+                    Conecta con los mejores <span class="highlight">cuidadores</span> para tu mascota
+                </h1>
+                <p class="hero-description">
+                    Encuentra paseadores, guarderías y alojamiento confiable para tu mejor amigo. 
+                    Miles de dueños confían en PetCare Connect para el cuidado de sus mascotas.
+                </p>
+                <div class="hero-buttons">
+                    <button class="btn btn-primary" id="btnComenzar">🚀 Comenzar ahora</button>
+                    <button class="btn btn-outline" id="btnSaberMas">📖 Saber más</button>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <span class="stat-number">5,000+</span>
+                        <span class="stat-label">Mascotas cuidadas</span>
                     </div>
-                    <h2>Cargando...</h2>
+                    <div class="stat">
+                        <span class="stat-number">1,200+</span>
+                        <span class="stat-label">Cuidadores activos</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">4.9★</span>
+                        <span class="stat-label">Calificación promedio</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-image">
+                <img src="https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=500&h=500&fit=crop" alt="Perro feliz" class="hero-img">
+                <div class="floating-card card-1">
+                    <span>🐕 Paseo</span>
+                    <span>30 min · Bs. 50</span>
+                </div>
+                <div class="floating-card card-2">
+                    <span>🏠 Guardería</span>
+                    <span>Día completo · Bs. 150</span>
+                </div>
+                <div class="floating-card card-3">
+                    <span>🛌 Alojamiento</span>
+                    <span>Noche · Bs. 120</span>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <script type="module" src="js/api.js"></script>
-    <script type="module" src="js/app.js"></script>
+    </section>
+
+    <!-- ==================== SERVICIOS ==================== -->
+    <section id="servicios" class="services">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Nuestros Servicios</span>
+                <h2>Todo lo que tu mascota necesita</h2>
+                <p>Ofrecemos una variedad de servicios para el bienestar de tu compañero peludo</p>
+            </div>
+            <div class="services-grid">
+                <div class="service-card">
+                    <div class="service-icon">🐕</div>
+                    <h3>Paseo de mascotas</h3>
+                    <p>Paseos de 30, 45 o 60 minutos por tu zona. Profesionales confiables y amorosos con los animales.</p>
+                    <div class="service-price">Desde Bs. 50</div>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">🏠</div>
+                    <h3>Guardería canina</h3>
+                    <p>Cuidado durante el día con áreas de juego, alimentación y mucho cariño. Ideal para días de trabajo.</p>
+                    <div class="service-price">Desde Bs. 120</div>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">🛌</div>
+                    <h3>Alojamiento</h3>
+                    <p>Hospedaje en casa de cuidadores verificados cuando viajas o necesitas ausentarte.</p>
+                    <div class="service-price">Desde Bs. 100</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== BENEFICIOS ==================== -->
+    <section id="beneficios" class="benefits">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Ventajas</span>
+                <h2>¿Por qué elegir PetCare Connect?</h2>
+                <p>Somos la plataforma líder en cuidado de mascotas</p>
+            </div>
+            <div class="benefits-grid">
+                <div class="benefit-card">
+                    <div class="benefit-icon">✅</div>
+                    <h3>Cuidadores verificados</h3>
+                    <p>Todos los cuidadores pasan por un proceso de verificación y evaluación.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🔒</div>
+                    <h3>Seguro de protección</h3>
+                    <p>Todos los servicios están cubiertos por nuestro seguro de responsabilidad.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">⭐</div>
+                    <h3>Calificaciones reales</h3>
+                    <p>Miles de reseñas verificadas de dueños reales.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">📍</div>
+                    <h3>Seguimiento GPS</h3>
+                    <p>Sigue el paseo de tu mascota en tiempo real (próximamente).</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">💳</div>
+                    <h3>Pagos seguros</h3>
+                    <p>Múltiples métodos de pago con total seguridad.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">📸</div>
+                    <h3>Reporte de actividad</h3>
+                    <p>Recibe fotos y videos de tu mascota durante el cuidado.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== CÓMO FUNCIONA ==================== -->
+    <section id="como-funciona" class="how-it-works">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Simple y Rápido</span>
+                <h2>¿Cómo funciona?</h2>
+                <p>Tres pasos para el cuidado de tu mascota</p>
+            </div>
+            <div class="steps-container">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-icon">📝</div>
+                    <h3>Regístrate</h3>
+                    <p>Crea tu cuenta gratis como dueño o cuidador</p>
+                </div>
+                <div class="step-arrow">→</div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-icon">🔍</div>
+                    <h3>Encuentra</h3>
+                    <p>Busca el servicio que necesitas en tu zona</p>
+                </div>
+                <div class="step-arrow">→</div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-icon">📋</div>
+                    <h3>Solicita</h3>
+                    <p>Agenda el servicio y recibe confirmación</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== TESTIMONIOS ==================== -->
+    <section id="testimonios" class="testimonials">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-badge">Testimonios</span>
+                <h2>Lo que dicen nuestros usuarios</h2>
+                <p>Más de 5,000 familias confían en nosotros</p>
+            </div>
+            <div class="testimonials-grid">
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">★★★★★</div>
+                    <p class="testimonial-text">"Excelente servicio, mi perro Max está feliz con su paseador. Muy profesionales y puntuales."</p>
+                    <div class="testimonial-author">
+                        <div class="author-avatar">🐕</div>
+                        <div>
+                            <h4>María González</h4>
+                            <span>Dueña de Max</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">★★★★★</div>
+                    <p class="testimonial-text">"Como cuidador, me ha permitido generar ingresos haciendo lo que amo. La plataforma es muy fácil de usar."</p>
+                    <div class="testimonial-author">
+                        <div class="author-avatar">🐈</div>
+                        <div>
+                            <h4>Carlos Ruiz</h4>
+                            <span>Cuidador verificado</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">★★★★★</div>
+                    <p class="testimonial-text">"La guardería que encontré aquí es increíble. Mi gata Luna está muy bien cuidada cuando viajo."</p>
+                    <div class="testimonial-author">
+                        <div class="author-avatar">🐱</div>
+                        <div>
+                            <h4>Ana López</h4>
+                            <span>Dueña de Luna</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== CALL TO ACTION ==================== -->
+    <section class="cta">
+        <div class="container cta-container">
+            <div class="cta-content">
+                <h2>¿Listo para cuidar a tu mascota?</h2>
+                <p>Únete a miles de dueños que ya confían en PetCare Connect</p>
+                <button class="btn btn-cta" id="btnComenzarFooter">Comienza ahora - Es gratis</button>
+            </div>
+            <div class="cta-image">
+                <img src="https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=300&h=300&fit=crop" alt="Perro feliz">
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== FOOTER ==================== -->
+    <footer class="footer">
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <div class="logo">
+                    <span class="logo-icon">🐾</span>
+                    <span class="logo-text">PetCare Connect</span>
+                </div>
+                <p>Conectando dueños con cuidadores confiables para el bienestar de tus mascotas.</p>
+                <div class="social-links">
+                    <a href="#">📘</a>
+                    <a href="#">📷</a>
+                    <a href="#">🐦</a>
+                </div>
+            </div>
+            <div class="footer-links">
+                <h4>Servicios</h4>
+                <a href="#">Paseo de mascotas</a>
+                <a href="#">Guardería</a>
+                <a href="#">Alojamiento</a>
+                <a href="#">Cuidado veterinario</a>
+            </div>
+            <div class="footer-links">
+                <h4>Para cuidadores</h4>
+                <a href="#">Cómo ser cuidador</a>
+                <a href="#">Requisitos</a>
+                <a href="#">Centro de ayuda</a>
+                <a href="#">Comunidad</a>
+            </div>
+            <div class="footer-links">
+                <h4>Contacto</h4>
+                <a href="#">info@petcareconnect.com</a>
+                <a href="#">+591 12345678</a>
+                <a href="#">Sucre, Bolivia</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2024 PetCare Connect. Todos los derechos reservados.</p>
+        </div>
+    </footer>
+
+    <script src="js/landing.js"></script>
 </body>
 </html>

@@ -877,3 +877,7 @@ if __name__ == '__main__':
     print("="*60 + "\n")
     
     app.run(host='0.0.0.0', port=port, debug=False)
+
+    #RESUMEN EN UNA FRASE
+#Fetch es la forma en que JavaScript pide datos a un servidor y espera a que le respondan.
+#El backend es un programa en Python que escucha peticiones, valida datos, habla con la base de datos y devuelve respuestas.
