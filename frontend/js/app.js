@@ -215,62 +215,414 @@ function renderRegister() {
     });
 }
 
-function renderDashboard() {
+// ==================== DASHBOARD MEJORADO ====================
+
+async function renderDashboard() {
     if (!currentUser) {
         renderLogin();
         return;
     }
     
-    app.innerHTML = `
-        ${renderNavBar()}
-        <div class="dashboard">
-            <div class="header">
-                <div class="user-info">
-                    <h1>🐾 PetCare Connect</h1>
-                    <p>Bienvenido, ${currentUser.nombre} ${currentUser.apellido} 
-                    <span class="role-badge role-${currentUser.rol}">${currentUser.rol}</span></p>
-                </div>
-            </div>
-            
-            <div class="stats-container">
-                <div class="stat-card">
-                    <h3>📊 Total Usuarios</h3>
-                    <p class="stat-number">${usuarios.length}</p>
-                </div>
-                <div class="stat-card">
-                    <h3>🐕 Dueños</h3>
-                    <p class="stat-number">${usuarios.filter(u => u.rol === 'dueño').length}</p>
-                </div>
-                <div class="stat-card">
-                    <h3>🐈 Cuidadores</h3>
-                    <p class="stat-number">${usuarios.filter(u => u.rol === 'cuidador').length}</p>
-                </div>
-                <div class="stat-card">
-                    <h3>⭐ Administradores</h3>
-                    <p class="stat-number">${usuarios.filter(u => u.rol === 'administrador').length}</p>
-                </div>
-            </div>
-            
-            <div style="text-align: center; padding: 50px; background: white; border-radius: 15px;">
-                <h2>🎉 Bienvenido al Sprint 3</h2>
-                <p>Se ha implementado la Gestión de Solicitudes y Búsqueda de Servicios</p>
-                <br>
-                <div class="info-box">
-                    <strong>📌 Novedades:</strong>
-                    <ul style="text-align: left; margin-top: 15px;">
-                        <li>✅ Dueños pueden buscar servicios con filtros (recientes, populares, mejor calificados)</li>
-                        <li>✅ Dueños pueden solicitar servicios</li>
-                        <li>✅ Cuidadores reciben solicitudes y pueden aceptar/rechazar</li>
-                        <li>✅ Notificaciones en tiempo real</li>
-                        <li>✅ Calificación de servicios (1-5 estrellas)</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    `;
-    
+    app.innerHTML = `${renderNavBar()}<div class="container"><div class="loading">Cargando dashboard...</div></div>`;
     attachNavEvents();
-    cargarNotificacionesNoLeidas();
+    
+    try {
+        const productosAprobados = await api.getProductosAprobados();
+        const misProductos = currentUser.rol === 'cuidador' ? await api.getMisProductos(currentUser.id) : [];
+        const solicitudesRecibidas = currentUser.rol === 'cuidador' ? await api.getSolicitudesRecibidas(currentUser.id) : [];
+        const misSolicitudes = currentUser.rol === 'dueño' ? await api.getMisSolicitudes(currentUser.id) : [];
+        const notificaciones = await api.getNotificaciones(currentUser.id);
+        const notificacionesNoLeidas = notificaciones.filter(n => n.leido === 0).length;
+        
+        const totalUsuarios = usuarios.length;
+        const totalCuidadores = usuarios.filter(u => u.rol === 'cuidador').length;
+        const totalDuenos = usuarios.filter(u => u.rol === 'dueño').length;
+        const totalServicios = productosAprobados.length;
+        
+        let solicitudesPendientes = 0;
+        let solicitudesAtendidas = 0;
+        
+        if (currentUser.rol === 'cuidador') {
+            solicitudesPendientes = solicitudesRecibidas.filter(s => s.estado === 'pendiente').length;
+            solicitudesAtendidas = solicitudesRecibidas.filter(s => s.estado === 'aceptado' || s.estado === 'completado').length;
+        } else if (currentUser.rol === 'dueño') {
+            solicitudesPendientes = misSolicitudes.filter(s => s.estado === 'pendiente').length;
+            solicitudesAtendidas = misSolicitudes.filter(s => s.estado === 'aceptado' || s.estado === 'completado').length;
+        }
+        
+        let ingresosTotales = 0;
+        if (currentUser.rol === 'cuidador' && misProductos.length > 0) {
+            const serviciosCompletados = solicitudesRecibidas.filter(s => s.estado === 'completado');
+            ingresosTotales = serviciosCompletados.reduce((total, s) => total + parseFloat(s.producto_precio || 0), 0);
+        }
+        
+        let calificacionPromedio = 0;
+        if (currentUser.rol === 'cuidador') {
+            try {
+                const calificaciones = await api.getCalificacionesCuidador(currentUser.id);
+                calificacionPromedio = calificaciones.promedio || 0;
+            } catch (e) {
+                calificacionPromedio = 0;
+            }
+        }
+        
+        app.innerHTML = `
+            ${renderNavBar()}
+            <div class="dashboard">
+                <div class="dashboard-header-modern">
+                    <div class="welcome-section">
+                        <div class="welcome-avatar">
+                            ${currentUser.rol === 'administrador' ? '👑' : currentUser.rol === 'cuidador' ? '🐕' : '🐾'}
+                        </div>
+                        <div class="welcome-text">
+                            <h1>¡Bienvenido, ${currentUser.nombre} ${currentUser.apellido}!</h1>
+                            <p>${getMensajePersonalizado(currentUser.rol)}</p>
+                        </div>
+                    </div>
+                    <div class="notif-badge-container">
+                        ${notificacionesNoLeidas > 0 ? `<span class="notif-badge-large">🔔 ${notificacionesNoLeidas} nuevas</span>` : ''}
+                    </div>
+                </div>
+                
+                <div class="stats-grid-modern">
+                    ${currentUser.rol === 'administrador' ? `
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${totalUsuarios}</span>
+                                <span class="stat-label">Usuarios totales</span>
+                            </div>
+                        </div>
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">🐕</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${totalCuidadores}</span>
+                                <span class="stat-label">Cuidadores activos</span>
+                            </div>
+                        </div>
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">🏠</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${totalDuenos}</span>
+                                <span class="stat-label">Dueños registrados</span>
+                            </div>
+                        </div>
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">📦</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${totalServicios}</span>
+                                <span class="stat-label">Servicios activos</span>
+                            </div>
+                        </div>
+                    ` : currentUser.rol === 'cuidador' ? `
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">📦</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${misProductos.length}</span>
+                                <span class="stat-label">Mis servicios</span>
+                            </div>
+                        </div>
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">📬</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${solicitudesPendientes}</span>
+                                <span class="stat-label">Solicitudes pendientes</span>
+                            </div>
+                        </div>
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${solicitudesAtendidas}</span>
+                                <span class="stat-label">Servicios completados</span>
+                            </div>
+                        </div>
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">💰</div>
+                            <div class="stat-info">
+                                <span class="stat-value">Bs. ${ingresosTotales.toLocaleString()}</span>
+                                <span class="stat-label">Ingresos totales</span>
+                            </div>
+                        </div>
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">⭐</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${calificacionPromedio.toFixed(1)}</span>
+                                <span class="stat-label">Calificación promedio</span>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">🐕</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${totalServicios}</span>
+                                <span class="stat-label">Servicios disponibles</span>
+                            </div>
+                        </div>
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">📋</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${solicitudesPendientes}</span>
+                                <span class="stat-label">Solicitudes activas</span>
+                            </div>
+                        </div>
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${solicitudesAtendidas}</span>
+                                <span class="stat-label">Servicios completados</span>
+                            </div>
+                        </div>
+                        <div class="stat-card-modern">
+                            <div class="stat-icon">⭐</div>
+                            <div class="stat-info">
+                                <span class="stat-value">${totalCuidadores}</span>
+                                <span class="stat-label">Cuidadores disponibles</span>
+                            </div>
+                        </div>
+                    `}
+                </div>
+                
+                <div class="dashboard-sections">
+                    <div class="activity-section">
+                        <div class="section-title">
+                            <h3>📋 Actividad Reciente</h3>
+                            <a href="#" class="ver-todo" id="verActividadLink">Ver todo →</a>
+                        </div>
+                        <div class="activity-list">
+                            ${generarActividadReciente(currentUser, notificaciones, solicitudesRecibidas, misSolicitudes, misProductos)}
+                        </div>
+                    </div>
+                    
+                    <div class="recommendations-section">
+                        <div class="section-title">
+                            <h3>💡 Recomendaciones</h3>
+                        </div>
+                        <div class="recommendations-list">
+                            ${generarRecomendaciones(currentUser, misProductos, solicitudesRecibidas)}
+                        </div>
+                    </div>
+                </div>
+                
+                ${currentUser.rol === 'dueño' ? `
+                    <div class="featured-services">
+                        <div class="section-title">
+                            <h3>🌟 Servicios Destacados</h3>
+                            <a href="#" id="verServiciosLink" class="ver-todo">Ver todos →</a>
+                        </div>
+                        <div class="services-preview">
+                            ${await generarServiciosDestacados()}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                ${currentUser.rol === 'administrador' ? `
+                    <div class="admin-stats">
+                        <div class="section-title">
+                            <h3>📊 Estadísticas de la Plataforma</h3>
+                        </div>
+                        <div class="admin-stats-grid">
+                            <div class="admin-stat-item">
+                                <span class="stat-label">Servicios pendientes</span>
+                                <span class="stat-value">${productosAprobados.filter(p => p.estado === 'pendiente').length}</span>
+                            </div>
+                            <div class="admin-stat-item">
+                                <span class="stat-label">Solicitudes totales</span>
+                                <span class="stat-value">${solicitudesRecibidas.length + misSolicitudes.length}</span>
+                            </div>
+                            <div class="admin-stat-item">
+                                <span class="stat-label">Tasa de aprobación</span>
+                                <span class="stat-value">${productosAprobados.length > 0 ? Math.round((productosAprobados.filter(p => p.estado === 'aprobado').length / productosAprobados.length) * 100) : 0}%</span>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+        
+        attachNavEvents();
+        cargarNotificacionesNoLeidas();
+        
+        document.getElementById('verActividadLink')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (currentUser.rol === 'cuidador') renderSolicitudesRecibidas();
+            else if (currentUser.rol === 'dueño') renderMisSolicitudes();
+            else renderNotificaciones();
+        });
+        
+        document.getElementById('verServiciosLink')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            renderBuscarProductos();
+        });
+        
+    } catch (error) {
+        console.error('Error cargando dashboard:', error);
+        showMessage('Error al cargar el dashboard', 'error');
+        
+        app.innerHTML = `
+            ${renderNavBar()}
+            <div class="dashboard">
+                <div class="dashboard-header-modern">
+                    <div class="welcome-section">
+                        <div class="welcome-avatar">🐾</div>
+                        <div class="welcome-text">
+                            <h1>¡Bienvenido, ${currentUser.nombre}!</h1>
+                            <p>Bienvenido a PetCare Connect</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        attachNavEvents();
+    }
+}
+
+// ==================== FUNCIONES AUXILIARES DEL DASHBOARD ====================
+
+function getMensajePersonalizado(rol) {
+    const mensajes = {
+        'administrador': 'Administra la plataforma y asegura la calidad de los servicios.',
+        'cuidador': 'Gestiona tus servicios y atiende las solicitudes de los dueños.',
+        'dueño': 'Encuentra el cuidado perfecto para tu mascota.'
+    };
+    return mensajes[rol] || 'Bienvenido a PetCare Connect';
+}
+
+function generarActividadReciente(currentUser, notificaciones, solicitudesRecibidas, misSolicitudes, misProductos) {
+    const actividades = [];
+    
+    notificaciones.slice(0, 3).forEach(n => {
+        actividades.push(`
+            <div class="activity-item">
+                <div class="activity-icon">${n.tipo === 'solicitud_nueva' ? '📬' : n.tipo === 'solicitud_aceptada' ? '✅' : 'ℹ️'}</div>
+                <div class="activity-content">
+                    <p class="activity-text">${escapeHtml(n.mensaje)}</p>
+                    <span class="activity-time">${formatDate(n.fecha)}</span>
+                </div>
+            </div>
+        `);
+    });
+    
+    if (actividades.length === 0) {
+        actividades.push(`
+            <div class="activity-item empty">
+                <div class="activity-icon">📭</div>
+                <div class="activity-content">
+                    <p class="activity-text">No hay actividad reciente</p>
+                </div>
+            </div>
+        `);
+    }
+    
+    return actividades.join('');
+}
+
+function generarRecomendaciones(currentUser, misProductos, solicitudesRecibidas) {
+    const recomendaciones = [];
+    
+    if (currentUser.rol === 'cuidador') {
+        if (misProductos.length === 0) {
+            recomendaciones.push(`
+                <div class="recommendation-item">
+                    <div class="rec-icon">➕</div>
+                    <div class="rec-content">
+                        <h4>Crea tu primer servicio</h4>
+                        <p>Registra un servicio para empezar a recibir solicitudes</p>
+                        <button class="rec-btn" id="recCrearProducto">Crear servicio →</button>
+                    </div>
+                </div>
+            `);
+        } else if (solicitudesRecibidas.filter(s => s.estado === 'pendiente').length > 0) {
+            recomendaciones.push(`
+                <div class="recommendation-item">
+                    <div class="rec-icon">📬</div>
+                    <div class="rec-content">
+                        <h4>Tienes solicitudes pendientes</h4>
+                        <p>Revisa y responde las solicitudes de los dueños</p>
+                        <button class="rec-btn" id="recVerSolicitudes">Ver solicitudes →</button>
+                    </div>
+                </div>
+            `);
+        } else {
+            recomendaciones.push(`
+                <div class="recommendation-item">
+                    <div class="rec-icon">📈</div>
+                    <div class="rec-content">
+                        <h4>¡Excelente trabajo!</h4>
+                        <p>Has completado ${solicitudesRecibidas.filter(s => s.estado === 'completado').length} servicios</p>
+                    </div>
+                </div>
+            `);
+        }
+    } else if (currentUser.rol === 'dueño') {
+        recomendaciones.push(`
+            <div class="recommendation-item">
+                <div class="rec-icon">🔍</div>
+                <div class="rec-content">
+                    <h4>Encuentra un cuidador</h4>
+                    <p>Busca servicios disponibles cerca de ti</p>
+                    <button class="rec-btn" id="recBuscarServicios">Buscar servicios →</button>
+                </div>
+            </div>
+        `);
+    } else if (currentUser.rol === 'administrador') {
+        recomendaciones.push(`
+            <div class="recommendation-item">
+                <div class="rec-icon">✅</div>
+                <div class="rec-content">
+                    <h4>Validar servicios pendientes</h4>
+                    <p>Hay servicios esperando tu aprobación</p>
+                    <button class="rec-btn" id="recValidarServicios">Validar servicios →</button>
+                </div>
+            </div>
+        `);
+    }
+    
+    setTimeout(() => {
+        document.getElementById('recCrearProducto')?.addEventListener('click', () => renderCrearProducto());
+        document.getElementById('recVerSolicitudes')?.addEventListener('click', () => renderSolicitudesRecibidas());
+        document.getElementById('recBuscarServicios')?.addEventListener('click', () => renderBuscarProductos());
+        document.getElementById('recValidarServicios')?.addEventListener('click', () => renderValidarProductos());
+    }, 100);
+    
+    return recomendaciones.join('');
+}
+
+async function generarServiciosDestacados() {
+    try {
+        const productos = await api.getProductosAprobados();
+        const destacados = productos.slice(0, 3);
+        
+        if (destacados.length === 0) {
+            return '<p class="empty-message">No hay servicios disponibles</p>';
+        }
+        
+        return destacados.map(p => `
+            <div class="service-preview-card">
+                <div class="preview-icon">${p.categoria === 'paseo' ? '🐕' : p.categoria === 'guarderia' ? '🏠' : '🛌'}</div>
+                <div class="preview-info">
+                    <h4>${escapeHtml(p.titulo)}</h4>
+                    <p class="preview-price">Bs. ${parseFloat(p.precio).toFixed(2)}</p>
+                    <p class="preview-caregiver">${escapeHtml(p.nombre)} ${escapeHtml(p.apellido)}</p>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        return '<p class="empty-message">Error cargando servicios</p>';
+    }
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Ahora mismo';
+    if (diffMins < 60) return `Hace ${diffMins} min`;
+    if (diffHours < 24) return `Hace ${diffHours} h`;
+    return `Hace ${diffDays} d`;
 }
 
 // ==================== SOLICITUDES Y BÚSQUEDA (SPRINT 3) ====================
@@ -458,7 +810,7 @@ async function renderMisSolicitudes() {
                                             <td>${getEstadoSolicitudBadge(s.estado)}</small></small></small></small></small></small></td>
                                             <td><small>${new Date(s.fecha_solicitud).toLocaleDateString()}</small></small></small></small></small></td>
                                             <td class="actions">
-                                                ${s.estado === 'aceptado' ? `<button class="btn-icon btn-calificar" data-id="${s.id}" data-cuidador="${s.cuidador_email}" title="Calificar">⭐ Calificar</button>` : ''}
+                                                ${s.estado === 'aceptado' ? `<button class="btn-icon btn-calificar" data-id="${s.id}" title="Calificar">⭐ Calificar</button>` : ''}
                                                 <button class="btn-icon btn-ver" data-id="${s.id}" title="Ver detalles">👁️</button>
                                             </small></td>
                                         </tr>
